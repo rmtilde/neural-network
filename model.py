@@ -1,5 +1,5 @@
 from combined.softmax_crossentropy import Activation_Softmax_Loss_CategoricalCrossentropy
-from layers import Layer_Dense
+from layers import Layer_Dense, Layer_Dropout
 from losses.categorical_crossentropy import Loss_CategoricalCrossentropy
 
 
@@ -16,10 +16,13 @@ class Model:
         self.loss = loss
         self.optimizer = optimizer
 
-    def forward(self, X):
+    def forward(self, X, training=True):
         output = X
         for layer in self.layers:
-            layer.forward(output)
+            if isinstance(layer, Layer_Dropout):
+                layer.forward(output, training=training)
+            else:
+                layer.forward(output)
             output = layer.output
         return output
 
@@ -31,7 +34,7 @@ class Model:
             layer.backward(dvalues)
             dvalues = layer.dinputs
 
-    def train(self, X, y, epochs=1, print_every=100):
+    def train(self, X, y, epochs=1, print_every=100, validation_data=None, training=True):
         self._auto_combine_loss_activation()
         
         for epoch in range(epochs):
@@ -47,8 +50,20 @@ class Model:
                 if hasattr(layer, "weights"):
                     self.optimizer.update_params(layer)
 
+            if validation_data is not None:
+                X_val, y_val = validation_data
+                val_output = self.forward(X_val)
+                val_predictions = val_output.argmax(axis=1)
+                val_accuracy = (val_predictions == y_val).mean()
+
+            
+
             if epoch % print_every == 0:
-                print(epoch, loss, accuracy)
+                if validation_data is not None:
+                    print(epoch, loss, accuracy, val_accuracy)
+                else:
+                    print(epoch, loss, accuracy)
+
     
     def _auto_combine_loss_activation(self):
         last_layer = self.layers[-1]
